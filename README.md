@@ -1,7 +1,5 @@
 # Generate Fake Credit Card Transaction Data, Including Fraudulent Transactions
 
-Note: Version v1.0 behavior has changed in such a way that it runs much faster, however transaction files are chunked, so that several files get generated per profile. If your downstream process expects 1 file per profile, please checkout the v0.5 release branch `release/v0.5`.
-
 ## General Usage
 
 In this version, the general usage has changed:
@@ -9,7 +7,7 @@ In this version, the general usage has changed:
 Please run the datagen script as follow:
 
 ```bash
-python datagen.py -n <NUMBER_OF_CUSTOMERS_TO_GENERATE> -o <OUTPUT_FOLDER> <START_DATE> <END_DATE>
+python datagen.py -n <NUMBER_OF_CUSTOMERS_TO_GENERATE> -o <OUTPUT_FOLDER> <START_DATE> <END_DATE> -static <BOOL>
 ```
 
 To see the full list of options, use:
@@ -25,12 +23,6 @@ You can pass additional options with the following flags:
 - `-c <CUSTOMER_FILE>`: pass the path to an already generated customer file
 - `-o <OUTPUT_FOLDER>`: folder to save files into
 - `-static <BOOL>`: if using static merchants setting (Newly added in v1.0b)
-
-This version is modified from the version v0.5 to parallelize the work using `multiprocessing`, so as to take advantage of all available CPUs and bring a huge speed improvement.
-
-Because of the way it parallelize the work (chunking transaction generation by chunking the customer list), there will be multiple transaction files generated per profile. Also not that if the number of customers is small, there may be empty files (i.e. files where no customer in the chunk matched the profile). This is expected.
-
-With standard profiles, it was benchmarked as generating ~95MB/thread/min. With a 64 cores/128 threads AMD E3, I was able to generate 1.4TB of data, 4.5B transactions, in just under 2h, as opposed to days when running the previous versions.
 
 The generation code is originally based on code by [Josh Plotkin](https://github.com/joshplotkin/data_generation). Change log of modifications to original code are below.
 
