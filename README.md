@@ -24,7 +24,7 @@ You can pass additional options with the following flags:
 - `-seed <INT>`: pass a seed to the Faker class
 - `-c <CUSTOMER_FILE>`: pass the path to an already generated customer file
 - `-o <OUTPUT_FOLDER>`: folder to save files into
-- `-static <BOOL>`: if using static merchants setting (Newly added in 1.0m)
+- `-static <BOOL>`: if using static merchants setting (Newly added in v1.0b)
 
 This version is modified from the version v0.5 to parallelize the work using `multiprocessing`, so as to take advantage of all available CPUs and bring a huge speed improvement.
 
@@ -36,7 +36,7 @@ The generation code is originally based on code by [Josh Plotkin](https://github
 
 ## Change Log
 
-### v1.0b (KQ)
+### v1.0b
 
 - New functions:
     - Add optionl static merchants profile generation
