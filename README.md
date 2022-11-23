@@ -24,6 +24,7 @@ You can pass additional options with the following flags:
 - `-seed <INT>`: pass a seed to the Faker class
 - `-c <CUSTOMER_FILE>`: pass the path to an already generated customer file
 - `-o <OUTPUT_FOLDER>`: folder to save files into
+- `-static <BOOL>`: if using static merchants setting (Newly added in 1.0m)
 
 This version is modified from the version v0.5 to parallelize the work using `multiprocessing`, so as to take advantage of all available CPUs and bring a huge speed improvement.
 
@@ -34,6 +35,16 @@ With standard profiles, it was benchmarked as generating ~95MB/thread/min. With 
 The generation code is originally based on code by [Josh Plotkin](https://github.com/joshplotkin/data_generation). Change log of modifications to original code are below.
 
 ## Change Log
+
+### v1.0b (KQ)
+
+- New functions:
+    - Add optionl static merchants profile generation
+    - Provide new fraud scenarios (compromised merchants), inspired by [Fraud Detection Handbook](https://fraud-detection-handbook.github.io/fraud-detection-handbook/Chapter_3_GettingStarted/SimulatedDataset.html) 
+    - Provide new logic to generate customer/merchants coordinates
+
+- Optimized some logic of the software
+- A notebook for checking the newly added features is provided
 
 ### v1.0
 

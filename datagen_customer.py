@@ -1,5 +1,5 @@
 from faker import Faker
-import sys
+import sys, math
 from datetime import date
 import random
 from main_config import MainConfig
@@ -48,19 +48,38 @@ def make_age_gender_dict():
         return gender_age
 
 
+def randomize_coordinate(lat, long, radius):
+    # Randomize coordinate for the customers
+    lat = float(lat)
+    long = float(long)
+    attraction = 3  # play with this value (density, https://stackoverflow.com/questions/66829191/how-to-generate-random-points-within-a-circular-area-with-higher-density-near-t)
+    t = random.random() * 2 * math.pi
+    r = random.random() ** attraction * radius  
+    new_lat = lat + r * math.cos(t)
+    new_long = long + r * math.sin(t)
+
+    return str(new_lat), str(new_long)
+
+
 class Customer:
-    'Randomly generates all the attributes for a customer'
+    # Randomly generates all the attributes for a customer
 
     def __init__(self, config, seed_num=None):
         self.fake = Faker()
         if seed_num is not None:
             Faker.seed(seed_num)
         # turn all profiles into dicts to work with
-        self.all_profiles = MainConfig(config).config
+        self.all_profiles = MainConfig(config).config # KQ: main_config.json 
+
 
     def generate_customer(self):
         self.gender, self.dob, self.age = self.generate_age_gender()
         self.addy = self.get_random_location()
+
+        city_pos = self.addy # Save the generated location for later use
+
+        self.addy[3], self.addy[4] = randomize_coordinate(self.addy[3], self.addy[4], 0.5) # 'Shake' the customers' coordinates
+
         customer_data = [
             self.fake.ssn(),
             self.fake.credit_card_number(),
@@ -74,7 +93,9 @@ class Customer:
             str(self.fake.random_number(digits=12)),
             self.find_profile()
         ]
-        return customer_data
+
+
+        return customer_data, city_pos # Also return newly generated customer coordinates
 
     def get_first_name(self):
         if self.gender == 'M':
@@ -149,7 +170,7 @@ def main(num_cust, seed_num, config, out_path):
         parser.print_help()
         exit(1)
 
-    # setup output to file by redirecting stdout
+    # setup output to file by redirecting stdout (Should be put into utilities later)
     original_sys_stdout = sys.stdout
     if out_path is not None:
         f_out = open(out_path, 'w')
@@ -159,15 +180,18 @@ def main(num_cust, seed_num, config, out_path):
     print("|".join(headers))
 
     c = Customer(config=config, seed_num=seed_num)
-    for _ in range(num_cust):
-        customer_data = c.generate_customer()
-        print("|".join(customer_data))
+    activated_city_pos = []
 
+    for _ in range(num_cust):
+        customer_data_pos = c.generate_customer() # Generate attributes for individual customers
+        activated_city_pos.append(customer_data_pos[1]) # KQ: Get a customer coordinates list
+        print("|".join(customer_data_pos[0]))
 
     # restore original sdtout when done
     if out_path is not None:
         sys.stdout = original_sys_stdout
-
+    
+    return activated_city_pos # Return the city coordinate list for generating merchants later
 
 cities = make_cities()
 age_gender = make_age_gender_dict()
@@ -187,4 +211,3 @@ if __name__ == '__main__':
     out_path = args.output
 
     main(num_cust, seed_num, config, out_path)
-

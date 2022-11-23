@@ -6,6 +6,7 @@ from multiprocessing import Pool, cpu_count
 
 from datagen_customer import main as datagen_customers
 from datagen_transaction import main as datagen_transactions
+from static_merchant_generator import main as static_merchant_generator 
 from datagen_transaction import valid_date
 
 
@@ -18,6 +19,7 @@ if __name__ == '__main__':
     parser.add_argument('-config', type=pathlib.Path, nargs='?', help='Profile config file (typically profiles/main_config.json")', default='./profiles/main_config.json')
     parser.add_argument('-c', '--customer_file', type=pathlib.Path, help='Customer file generated with the datagen_customer script', default=None)
     parser.add_argument('-o', '--output', type=pathlib.Path, help='Output Folder path', default='data')
+    parser.add_argument('-static', type=bool, help='Whether generate new static merchants and enable related features',default = False) # Static merchants switch
 
 
     args = parser.parse_args()
@@ -30,6 +32,7 @@ if __name__ == '__main__':
     end_date = args.end_date
     out_path = args.output
     customers_out_file = customer_file or os.path.join(out_path, 'customers.csv')
+    static = args.static
 
     # create the folder if it does not exist
     if not os.path.exists(out_path):
@@ -42,7 +45,8 @@ if __name__ == '__main__':
             agree = input(f"File {customers_out_file} already exists. Overwrite? (y/N)")
             if agree.lower() != 'y':
                 exit(1)
-        datagen_customers(num_cust, seed_num, config, customers_out_file)
+        activated_cities = datagen_customers(num_cust, seed_num, config, customers_out_file)
+        
     elif customer_file is None:
         print('Either a customer file or a number of customers to create must be provided')
         exit(1)
@@ -53,6 +57,9 @@ if __name__ == '__main__':
         with open(customer_file, 'r') as f:
             for row in f.readlines():
                 num_cust += 1
+
+    if static: # Utilize static merchants settings
+        static_merchant_generator(num_cust, activated_cities)
 
     # figure out reasonable chunk size
     num_cpu = cpu_count()
@@ -89,7 +96,8 @@ if __name__ == '__main__':
                 end_date, 
                 transactions_filename,
                 customer_file_offset_start,
-                customer_file_offset_end
+                customer_file_offset_end,
+                static
             ))
             customer_file_offset_start += chunk_size
             customer_file_offset_end = min(num_cust - 1, customer_file_offset_end + chunk_size)

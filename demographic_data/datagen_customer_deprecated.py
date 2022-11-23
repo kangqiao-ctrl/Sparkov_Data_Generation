@@ -1,3 +1,5 @@
+## KQ: Deprecated 
+
 import faker
 from faker import Faker
 import random

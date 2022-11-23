@@ -23,7 +23,7 @@ class MainConfig:
             main_config = json.load(f)
             all_profiles = {}
             for pf in main_config:
-                if pf != 'leftovers.json':
+                if pf != 'leftovers.json': # KQ: Saved for 'leftovers'
                     all_profiles[pf] = {}
                     for qual in main_config[pf]:
                         all_profiles[pf][qual] = \
