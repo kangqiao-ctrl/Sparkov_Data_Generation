@@ -28,7 +28,7 @@ The generation code is originally based on code by [Josh Plotkin](https://github
 
 ## Change Log
 
-### v1.0b
+### v1.0b: Static merchants and fraud scenarios
 
 - New functions:
     - Add optionl static merchants profile generation
