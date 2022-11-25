@@ -4,13 +4,15 @@ import json
 import pathlib
 import random
 import sys
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from faker import Faker
 import numpy as np
 
 from datagen_customer import headers
+from datagen_static_merchants import high_risk_cates, moderate_risk_cates, online_shopping, brick_and_mortar
 from profile_weights import Profile
+from utilities import valid_date
 
 fake = Faker()
 transaction_headers = [
@@ -23,13 +25,57 @@ transaction_headers = [
     'is_fraud', 
     'merchant', 
     'merch_lat', 
-    'merch_long'
+    'merch_long',
+    'is_online'
 ]
 
-# Global merchant dict var
 merchants = {}
 
+def read_merchants(static = False):
+    # read file to merchant variable only once / built a map of merchant per category for easy lookup
 
+    if static:
+        merchants_path = 'customers_merchants/merchants_static.csv'
+    else:
+        merchants_path = 'customers_merchants/merchants.csv'
+    with open(merchants_path, 'r') as merchants_file:
+        csv_reader = csv.reader(merchants_file, delimiter='|')
+        # skip header
+        csv_reader.__next__()
+        for row in csv_reader:
+            if merchants.get(row[0]) is None:
+                merchants[row[0]] = []
+            if static:
+                merchants[row[0]].append([row[1],row[2],row[3],row[4]])
+            else:
+                merchants[row[0]].append(row[1])
+
+def get_list_terminals_within_radius(cust_lat, cust_long, merchant_list, r): 
+
+        # From: https://fraud-detection-handbook.github.io/fraud-detection-handbook/Chapter_3_GettingStarted/SimulatedDataset.html
+    
+        # Use numpy arrays in the following to speed up computations
+        # Location (x,y) of customer as numpy array
+    customer_lat_long = np.array([float(cust_lat), float(cust_long)])
+
+    merch_coordinates = []
+    for merch in merchant_list:
+        merch_coordinates.append([float(merch[1]), float(merch[2])])
+    merch_coordinates =  np.array(merch_coordinates)
+
+    # Squared difference in coordinates between customer and terminal locations
+    squared_diff = np.square(customer_lat_long - merch_coordinates)
+    
+    # Sum along rows and compute suared root to get distance
+    dist = np.sqrt(np.sum(squared_diff, axis=1))
+    
+    # Get the indices of terminals which are at a distance less than r
+    available_idx = list(np.where(dist<r)[0])
+
+    # Get a list of available merchants
+    available_merchants = [merchant_list[idx] for idx in available_idx]
+    
+    return available_merchants
 
 class Customer:
     def __init__(self, raw):
@@ -37,34 +83,8 @@ class Customer:
         self.attrs = self.parse_customer(raw)
         self.fraud_dates = []
 
-    def get_list_terminals_within_radius(self, cust_x_coordinate, cust_y_coordinate, merchant_list, r): 
-
-        # From: https://fraud-detection-handbook.github.io/fraud-detection-handbook/Chapter_3_GettingStarted/SimulatedDataset.html
-    
-        # Use numpy arrays in the following to speed up computations
-        # Location (x,y) of customer as numpy array
-        x_y_customer = np.array([float(cust_x_coordinate), float(cust_y_coordinate)])
-
-        merch_coordinates = []
-        for merch in merchant_list:
-            merch_coordinates.append([float(merch[1]), float(merch[2])])
-        merch_coordinates =  np.array(merch_coordinates)
-
-        # Squared difference in coordinates between customer and terminal locations
-        squared_diff_x_y = np.square(x_y_customer - merch_coordinates)
-        
-        # Sum along rows and compute suared root to get distance
-        dist_x_y = np.sqrt(np.sum(squared_diff_x_y, axis=1))
-        
-        # Get the indices of terminals which are at a distance less than r
-        available_idx = list(np.where(dist_x_y<r)[0])
-        
-        available_merchants = [merchant_list[idx] for idx in available_idx]
-        # Return the list of terminal IDs
-        return available_merchants
-
     def print_trans(self, trans, is_fraud, fraud_dates, static = False):
-        is_traveling = trans[1] # KQ: Always NO in the current version
+        is_traveling = trans[1] # Always NO in the current version. TODO in the future.
         travel_max = trans[2]
 
         # not traveling, so use 1 decimial degree (~70mile) radius around home address
@@ -76,34 +96,60 @@ class Customer:
 
         for t in trans[0]: 
             # Each t is a list: [trans#, date, time, transaction number, category, amount, is_fraud]
-            ## Get transaction location details to generate appropriate merchant record
-            merchants_in_category = merchants.get(t[4]) # merchant category
+            cate = t[4]
+            merchants_in_category = merchants.get(cate) 
 
             cust_lat = self.attrs['lat']
             cust_long = self.attrs['long']
+
+            is_online = 0
         
-            if not static:
+            if static:
+                if cate in online_shopping: 
+                    #print(f"Online shopping for {self.raw}, cate: {cate}.") # Such helper prints can be added whenever needed. 
+                    is_online = 1
+                else:
+                    available_merchants = get_list_terminals_within_radius(cust_lat, cust_long, merchants_in_category, 0.1) # Default radius: 0.1 degree
+                    if available_merchants: select_merchant_instance = random.sample(available_merchants, 1)[0]
+                    else:
+                        im_driving = random.randint(1,100)
+                        if (im_driving <= 30 or cate in brick_and_mortar):  # If rolled under 30 or the category is brick_and_mortar, search at a higher radius (e.g., 0.5 degree).
+                            #print(f" No available merchant in the city. If driving: {im_driving}; Category: {cate};  Customer: {self.raw}")
+                            available_merchants = get_list_terminals_within_radius(cust_lat, cust_long, merchants_in_category, 0.5)
+                            if available_merchants: 
+                                #print(f"Found the merchant after driving!")
+                                select_merchant_instance = random.sample(available_merchants, 1)[0]
+                            elif cate in brick_and_mortar:
+                                #print(f"No brick-n-mortar store in {cate} is available for this customer. Won't shop at this time")
+                                continue
+                            else:
+                                #print(f"Drove for an extra 0.4 degree and no chance. Deided to go shopping online.")
+                                is_online = 1
+                        else:
+                            is_online = 1
+                if is_online:
+                    select_merchant_instance = random.sample(merchants_in_category, 1)[0] # If the category is in online_shopping, do not bother finding the merchants near customer
+
+                #-> A lambda checker, used as part of the checker in Line 142 (commented out)
+                #risk = lambda x: 'high' if x in high_risk_cates else ('moderate' if x in moderate_risk_cates else 'low') 
+
+                # If the merchant is compromised or the transaction happend online and the customer is of 50+ age:
+                if select_merchant_instance[3] == '1' or (is_online and ('50up' in self.raw[-1])): 
+                    merchant_fraud_flag = random.randint(1,100)
+                    if merchant_fraud_flag <= 50 or cate in high_risk_cates or (merchant_fraud_flag <= 30 and cate in moderate_risk_cates):
+                        #print(f"Encountered risky merchant! Cate: {cate}, Risk: {risk(cate)}, If 50+:{'50up' in self.raw[-1]}, Rolled {merchant_fraud_flag}.")
+                        is_fraud = 1
+                        t[6] = '1' # Can be replaced with something else (e.g., 'x') for a straightforward check if the fraud data is generated through this mechanism
+                        #print('Fraud due to transaction at risky merchant/online.')
+
+                chosen_merchant, merch_lat,  merch_long = select_merchant_instance[0], select_merchant_instance[1], select_merchant_instance[2]
+            else:
                 chosen_merchant = random.sample(merchants_in_category, 1)[0]
                 merch_lat = fake.coordinate(center=float(cust_lat),radius=rad) 
                 merch_long = fake.coordinate(center=float(cust_long),radius=rad)
 
-            else:
-                available_merchants = self.get_list_terminals_within_radius(cust_lat, cust_long, merchants_in_category, 0.1)
-                if available_merchants == []:
-                    select_merchant_instance = random.sample(merchants_in_category, 1)[0]
-                else:
-                    select_merchant_instance = random.sample(available_merchants, 1)[0]
-
-                if select_merchant_instance[3] == '1':
-                    merchant_compromise_flag = random.randint(0,100)
-                    if merchant_compromise_flag <= 5:
-                        is_fraud = 1
-                        t[6] = 'x' # An intuitive check if the compromised merchant setting is working
-
-                chosen_merchant, merch_lat,  merch_long = select_merchant_instance[0], select_merchant_instance[1], select_merchant_instance[2]
-
             if (is_fraud == 0 and t[1] not in fraud_dates) or is_fraud == 1: 
-                features = self.raw + t + [chosen_merchant, str(merch_lat), str(merch_long)]
+                features = self.raw + t + [chosen_merchant, str(merch_lat), str(merch_long), str(is_online)]
                 print("|".join(features)) # Final output print
 
 
@@ -113,44 +159,18 @@ class Customer:
         # create a dict of name: value for each column
         return dict(zip(headers, cols))
 
-def valid_date(s):
-    try:
-        return datetime.strptime(s, "%m-%d-%Y")
-    except ValueError:
-        msg = "not a valid date: {0!r}".format(s)
-        raise argparse.ArgumentTypeError(msg)
-
-
 def main(customer_file, profile_file, start_date, end_date, out_path=None, start_offset=0, end_offset=sys.maxsize, static = False):
-
-    # read file to merchant variable only once / built a map of merchant per category for easy lookup
-
-    if not static:
-        with open('data/merchants.csv', 'r') as merchants_file:
-            csv_reader = csv.reader(merchants_file, delimiter='|')
-            # skip header
-            csv_reader.__next__()
-            for row in csv_reader:
-                if merchants.get(row[0]) is None:
-                    merchants[row[0]] = []
-                merchants[row[0]].append(row[1])
-    else:
-        with open('data/merchants_static.csv', 'r') as merchants_file:
-            csv_reader = csv.reader(merchants_file, delimiter='|')
-            # skip header
-            csv_reader.__next__()
-            for row in csv_reader:
-                if merchants.get(row[0]) is None:
-                    merchants[row[0]] = []
-                merchants[row[0]].append([row[1],row[2],row[3],row[4]])
 
     profile_name = profile_file.name
     profile_file_fraud = pathlib.Path(*list(profile_file.parts)[:-1] + [f"fraud_{profile_name}"]) 
+
+    read_merchants(static)
 
     # setup output to file by redirecting stdout
     original_sys_stdout = sys.stdout
     if out_path is not None:
         f_out = open(out_path, 'w')
+        #f_out = open('test_log', 'w')
         sys.stdout = f_out
 
     with open(profile_file, 'r') as f:
@@ -185,19 +205,18 @@ def main(customer_file, profile_file, start_date, end_date, out_path=None, start
                 cust = Customer(row)
                 if cust.attrs['profile'] == profile_name:
                     is_fraud = 0
-                    fraud_flag = random.randint(0,100) # Original comment: set fraud flag here, as we either gen real or fraud, not both for
-                                            # the same day. 
+                    fraud_flag = random.randint(1,100) # set fraud flag here, as we either gen real or fraud, not both for the same day. 
                     fraud_dates = []
                     # decide if we generate fraud or not
-                    if fraud_flag < 10: #11->25 Original: 99%
-                        fraud_interval = random.randint(1,1) #7->1
-                        # rand_interval is the random no of days to be added to start date KQ: Now been fixed to 1 day
+                    if fraud_flag <= 10: #11->25 Original percentage: 99%, which implies almost everybody will encounter fraud at least for once
+                        fraud_interval = random.randint(1,1) 
+                        # rand_interval is the random no of days to be added to start date
                         rand_interval = random.randint(1, inter_val)
                         #random start date is selected
                         newstart = start_date + timedelta(days=rand_interval)   
                         # based on the fraud interval , random enddate is selected
                         newend = newstart + timedelta(days=fraud_interval)
-                        # we assume that the fraud window can be between 1 to 7 days #7->1
+                        # we assume that the fraud window can be between 1 to 7 days 
                         fraud_profile.set_date_range(newstart, newend)
                         is_fraud = 1
                         temp_tx_data = fraud_profile.sample_from(is_fraud) # Sample with weights in the fraud*.json files
@@ -220,12 +239,13 @@ def main(customer_file, profile_file, start_date, end_date, out_path=None, start
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser('Transaction Generator')
+    parser = argparse.ArgumentParser('Sparkov: Transaction Generator Module')
     parser.add_argument('customer_file', type=pathlib.Path, help='Customer file generated with the datagen_customer script')
     parser.add_argument('profile', type=pathlib.Path, help='profile')
     parser.add_argument('start_date', type=valid_date, help='Transactions start date')
     parser.add_argument('end_date', type=valid_date, help='Transactions start date')
     parser.add_argument('-o', '--output', type=pathlib.Path, help='Output file path')
+    parser.add_argument('-s', '--static_merchants', action='store_true', help='Whether generate merchants with static coordinates and identify high-risk merchants') # Static merchants switch
 
     args = parser.parse_args()
 
@@ -234,7 +254,6 @@ if __name__ == '__main__':
     start_date = args.start_date
     end_date = args.end_date
     out_path = args.output
+    if_static = bool(args.static_merchants)
 
-    main(customer_file, profile_file, start_date, end_date, out_path)
-
-    
+    main(customer_file, profile_file, start_date, end_date, out_path, static = if_static)

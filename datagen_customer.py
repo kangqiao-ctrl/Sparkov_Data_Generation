@@ -6,6 +6,7 @@ from main_config import MainConfig
 import argparse
 import pathlib
 from bisect import bisect_left
+from utilities import randomize_coordinate
 
 
 headers = [
@@ -27,10 +28,11 @@ headers = [
     'profile'
 ]
 
+activated_cities_pos = [] # If a city in locations_partitions.csv has at least one customer, its coordinates will be stored in this list
 
 def make_cities():
     cities = {}
-    with open('./demographic_data/locations_partitions.csv', 'r') as f:
+    with open('./demographic_stats/locations_partitions.csv', 'r') as f:
         for line in f.readlines()[1:]:
             cdf, output = line.strip().split(',')
             cities[float(cdf)] = output.split('|')
@@ -40,25 +42,12 @@ def make_cities():
 def make_age_gender_dict():
     gender_age = {}
     prev = 0
-    with open('./demographic_data/age_gender_demographics.csv', 'r') as f:
+    with open('./demographic_stats/age_gender_demographics.csv', 'r') as f:
         for line in f.readlines()[1:]:
             l = line.strip().split(',')
             prev += float(l[3])
             gender_age[prev] = (l[2], float(l[1]))
         return gender_age
-
-
-def randomize_coordinate(lat, long, radius):
-    # Randomize coordinate for the customers
-    lat = float(lat)
-    long = float(long)
-    attraction = 3  # play with this value (density, https://stackoverflow.com/questions/66829191/how-to-generate-random-points-within-a-circular-area-with-higher-density-near-t)
-    t = random.random() * 2 * math.pi
-    r = random.random() ** attraction * radius  
-    new_lat = lat + r * math.cos(t)
-    new_long = long + r * math.sin(t)
-
-    return str(new_lat), str(new_long)
 
 
 class Customer:
@@ -69,14 +58,14 @@ class Customer:
         if seed_num is not None:
             Faker.seed(seed_num)
         # turn all profiles into dicts to work with
-        self.all_profiles = MainConfig(config).config # KQ: main_config.json 
+        self.all_profiles = MainConfig(config).config
 
 
     def generate_customer(self):
         self.gender, self.dob, self.age = self.generate_age_gender()
         self.addy = self.get_random_location()
 
-        city_pos = self.addy # Save the generated location for later use
+        city_pos = self.addy # Save the generated city coordinates (not randomized) for later use
 
         self.addy[3], self.addy[4] = randomize_coordinate(self.addy[3], self.addy[4], 0.5) # 'Shake' the customers' coordinates
 
@@ -94,8 +83,7 @@ class Customer:
             self.find_profile()
         ]
 
-
-        return customer_data, city_pos # Also return newly generated customer coordinates
+        return customer_data, city_pos # Also return the city information with the customer living in
 
     def get_first_name(self):
         if self.gender == 'M':
@@ -180,18 +168,16 @@ def main(num_cust, seed_num, config, out_path):
     print("|".join(headers))
 
     c = Customer(config=config, seed_num=seed_num)
-    activated_city_pos = []
 
     for _ in range(num_cust):
         customer_data_pos = c.generate_customer() # Generate attributes for individual customers
-        activated_city_pos.append(customer_data_pos[1]) # KQ: Get a customer coordinates list
+        activated_cities_pos.append(customer_data_pos[1]) # Store the returned city coordinates into the list
         print("|".join(customer_data_pos[0]))
 
     # restore original sdtout when done
     if out_path is not None:
         sys.stdout = original_sys_stdout
-    
-    return activated_city_pos # Return the city coordinate list for generating merchants later
+
 
 cities = make_cities()
 age_gender = make_age_gender_dict()
