@@ -105,3 +105,4 @@ if __name__ == '__main__':
 
     with Pool() as p:
         p.starmap(datagen_transactions, args_array)
+        

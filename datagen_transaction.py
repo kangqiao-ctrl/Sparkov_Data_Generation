@@ -117,7 +117,7 @@ class Customer:
                             #print(f" No available merchant in the city. If driving: {im_driving}; Category: {cate};  Customer: {self.raw}")
                             available_merchants = get_list_terminals_within_radius(cust_lat, cust_long, merchants_in_category, 0.5)
                             if available_merchants: 
-                                #print(f"Found the merchant after driving!")
+                                #print(f"Found some merchants after driving!")
                                 select_merchant_instance = random.sample(available_merchants, 1)[0]
                             elif cate in brick_and_mortar:
                                 #print(f"No brick-n-mortar store in {cate} is available for this customer. Won't shop at this time")
@@ -257,3 +257,4 @@ if __name__ == '__main__':
     if_static = bool(args.static_merchants)
 
     main(customer_file, profile_file, start_date, end_date, out_path, static = if_static)
+    

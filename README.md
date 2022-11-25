@@ -20,7 +20,7 @@ You can pass additional options with the following flags:
 - `-seed <INT>`: pass a seed to the Faker class
 - `-c <CUSTOMER_FILE>`: pass the path to an already generated customer file
 - `-o <OUTPUT_FOLDER>`: folder to save files into
-- `-s`: whether generate merchants with static coordinates and identify high-risk merchants (Newly added in v1.0b)
+- `-s`: whether generate merchants with static coordinates and identify high-risk merchants/enable new fraud scenarios (Newly added in v1.0b)
 
 The generation code is originally based on code by [Josh Plotkin](https://github.com/joshplotkin/data_generation). Change log of modifications to original code are below.
 

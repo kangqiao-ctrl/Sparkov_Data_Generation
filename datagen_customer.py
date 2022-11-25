@@ -197,3 +197,4 @@ if __name__ == '__main__':
     out_path = args.output
 
     main(num_cust, seed_num, config, out_path)
+    

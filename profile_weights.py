@@ -260,4 +260,3 @@ class Profile:
             epoch = int(chosen_date.timestamp())
             output.append([str(trans_num), chosen_date_str, f"{hr:02d}:{mn:02d}:{sec:02d}", str(epoch), str(chosen_cat), str(chosen_amt), str(is_fraud)])
         return output, is_traveling, travel_max, fraud_dates
-
