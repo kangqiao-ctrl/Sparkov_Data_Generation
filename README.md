@@ -30,7 +30,7 @@ The generation code is originally based on code by [Josh Plotkin](https://github
 
 - New functions:
     - Add optionl static merchants profile generation
-    - Provide MORE new fraud scenarios (compromised merchants & high/moderate fraudlent risk categories, online shopping & vulnerable groups), inspired by [Fraud Detection Handbook](https://fraud-detection-handbook.github.io/fraud-detection-handbook/Chapter_3_GettingStarted/SimulatedDataset.html) 
+    - Provide MORE fraud scenarios (compromised merchants & high/moderate fraudlent risk categories, online shopping & vulnerable groups), inspired by [Fraud Detection Handbook](https://fraud-detection-handbook.github.io/fraud-detection-handbook/Chapter_3_GettingStarted/SimulatedDataset.html) 
     - Provide new logic to randomize customer/merchants coordinates
 - Optimized the structure of the software, removed some unused .py and .json files and test modules
 - Provided a notebook for checking the newly added features
