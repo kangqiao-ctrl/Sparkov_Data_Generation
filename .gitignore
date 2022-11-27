@@ -1,4 +1,5 @@
 /data/*.csv
+/data_10k_s_i
 /customers_merchants/*.csv
 !/customers_merchants/merchants.csv
 
