@@ -23,6 +23,7 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--customer_file', type=pathlib.Path, help='Customer file generated with the datagen_customer script', default=None)
     parser.add_argument('-o', '--output', type=pathlib.Path, help='Output Folder path', default='data')
     parser.add_argument('-s', '--static_merchants', action='store_true', help='Whether generate merchants with static coordinates and identify high-risk merchants') # Static merchants switch
+    parser.add_argument('-i', '--scenario_identifier', action='store_true', help='Mark scenario-generated transactions with scenario markers') # If need seperate markers for transactions generated under different scenarios
     
     args = parser.parse_args()
     num_cust = args.nb_customers
@@ -34,6 +35,7 @@ if __name__ == '__main__':
     end_date = args.end_date
     customers_out_file = customer_file or os.path.join('customers_merchants/customers.csv')
     is_static = bool(args.static_merchants)
+    need_identifier = bool(args.scenario_identifier)
 
     # create the folder if it does not exist
     if not os.path.exists(out_path):
@@ -59,7 +61,7 @@ if __name__ == '__main__':
             for row in f.readlines():
                 num_cust += 1
 
-    if is_static: # If is_static is True, generate merchants with static coordinates and fraud transactions based on different scenario
+    if is_static: # If is_static is True, generate merchants with static coordinates and also the fraud transactions will be based on different scenario
         datagen_static_merchants(num_cust, datagen_customer.activated_cities_pos)
 
     # figure out reasonable chunk size
@@ -98,7 +100,8 @@ if __name__ == '__main__':
                 transactions_filename,
                 customer_file_offset_start,
                 customer_file_offset_end,
-                is_static
+                is_static,
+                need_identifier
             ))
             customer_file_offset_start += chunk_size
             customer_file_offset_end = min(num_cust - 1, customer_file_offset_end + chunk_size)

@@ -29,11 +29,10 @@ transaction_headers = [
     'is_online'
 ]
 
-merchants = {}
+merchants = {} # A global variable to store returned merchants from read_merchants()
 
 def read_merchants(static = False):
     # read file to merchant variable only once / built a map of merchant per category for easy lookup
-
     if static:
         merchants_path = 'customers_merchants/merchants_static.csv'
     else:
@@ -52,8 +51,7 @@ def read_merchants(static = False):
 
 def get_list_terminals_within_radius(cust_lat, cust_long, merchant_list, r): 
 
-        # From: https://fraud-detection-handbook.github.io/fraud-detection-handbook/Chapter_3_GettingStarted/SimulatedDataset.html
-    
+        # Inspired by: https://fraud-detection-handbook.github.io/fraud-detection-handbook/Chapter_3_GettingStarted/SimulatedDataset.html
         # Use numpy arrays in the following to speed up computations
         # Location (x,y) of customer as numpy array
     customer_lat_long = np.array([float(cust_lat), float(cust_long)])
@@ -74,7 +72,7 @@ def get_list_terminals_within_radius(cust_lat, cust_long, merchant_list, r):
 
     # Get a list of available merchants
     available_merchants = [merchant_list[idx] for idx in available_idx]
-    
+
     return available_merchants
 
 class Customer:
@@ -83,7 +81,8 @@ class Customer:
         self.attrs = self.parse_customer(raw)
         self.fraud_dates = []
 
-    def print_trans(self, trans, is_fraud, fraud_dates, static = False):
+    def print_trans(self, trans, is_fraud, fraud_dates, static = False, scenario_identifier = False):
+
         is_traveling = trans[1] # Always NO in the current version. TODO in the future.
         travel_max = trans[2]
 
@@ -105,6 +104,7 @@ class Customer:
             is_online = 0
         
             if static:
+                # All the print() which commented out can be uncommented for debugging. Remember to change sys.stdout accordingly.
                 if cate in online_shopping: 
                     #print(f"Online shopping for {self.raw}, cate: {cate}.") # Such helper prints can be added whenever needed. 
                     is_online = 1
@@ -130,16 +130,24 @@ class Customer:
                 if is_online:
                     select_merchant_instance = random.sample(merchants_in_category, 1)[0] # If the category is in online_shopping, do not bother finding the merchants near customer
 
-                #-> A lambda checker, used as part of the checker in Line 142 (commented out)
-                #risk = lambda x: 'high' if x in high_risk_cates else ('moderate' if x in moderate_risk_cates else 'low') 
-
                 # If the merchant is compromised or the transaction happend online and the customer is of 50+ age:
                 if select_merchant_instance[3] == '1' or (is_online and ('50up' in self.raw[-1])): 
                     merchant_fraud_flag = random.randint(1,100)
-                    if merchant_fraud_flag <= 50 or cate in high_risk_cates or (merchant_fraud_flag <= 30 and cate in moderate_risk_cates):
+
+                    # A variable to save the conditions to trigger three different scenarios. Specifically:
+                    # "High risk merchants" and no olled under 10;
+                    # "Moderate risk merchants" and rolled under 3;
+                    # Customer age under 50 and shopped online and rolled under 5.
+                    scenario_flag = 'risk:high' if (cate in high_risk_cates and merchant_fraud_flag <= 10) else 'risk:moderate' if (cate in moderate_risk_cates and merchant_fraud_flag <= 3)\
+                        else 'group:vulnerable' if (('50up' in self.raw[-1] and is_online) and merchant_fraud_flag <= 5) else None
+
+                    if  scenario_flag: # If the scenario_flag is not None
                         #print(f"Encountered risky merchant! Cate: {cate}, Risk: {risk(cate)}, If 50+:{'50up' in self.raw[-1]}, Rolled {merchant_fraud_flag}.")
                         is_fraud = 1
-                        t[6] = '1' # Can be replaced with something else (e.g., 'x') for a straightforward check if the fraud data is generated through this mechanism
+                        if scenario_identifier:
+                            t[6] = scenario_flag # Directly use the scenario_flag as the transaction identifier
+                        else:
+                            t[6] = 1 # Simply save ordinary flag int 1 to mark fraud transactions
                         #print('Fraud due to transaction at risky merchant/online.')
 
                 chosen_merchant, merch_lat,  merch_long = select_merchant_instance[0], select_merchant_instance[1], select_merchant_instance[2]
@@ -159,18 +167,17 @@ class Customer:
         # create a dict of name: value for each column
         return dict(zip(headers, cols))
 
-def main(customer_file, profile_file, start_date, end_date, out_path=None, start_offset=0, end_offset=sys.maxsize, static = False):
+def main(customer_file, profile_file, start_date, end_date, out_path=None, start_offset=0, end_offset=sys.maxsize, is_static = False, need_identifier = False):
 
     profile_name = profile_file.name
     profile_file_fraud = pathlib.Path(*list(profile_file.parts)[:-1] + [f"fraud_{profile_name}"]) 
 
-    read_merchants(static)
+    read_merchants(is_static)
 
     # setup output to file by redirecting stdout
     original_sys_stdout = sys.stdout
     if out_path is not None:
         f_out = open(out_path, 'w')
-        #f_out = open('test_log', 'w')
         sys.stdout = f_out
 
     with open(profile_file, 'r') as f:
@@ -221,7 +228,7 @@ def main(customer_file, profile_file, start_date, end_date, out_path=None, start
                         is_fraud = 1
                         temp_tx_data = fraud_profile.sample_from(is_fraud) # Sample with weights in the fraud*.json files
                         fraud_dates = temp_tx_data[3] 
-                        cust.print_trans(temp_tx_data, is_fraud, fraud_dates, static) 
+                        cust.print_trans(temp_tx_data, is_fraud, fraud_dates, static = is_static, scenario_identifier = need_identifier) 
 
                     # we're done with fraud (or didn't do it) but still need regular transactions
                     # we pass through our previously selected fraud dates (if any) to filter them
@@ -229,7 +236,7 @@ def main(customer_file, profile_file, start_date, end_date, out_path=None, start
                     
                     is_fraud = 0
                     temp_tx_data = profile.sample_from(is_fraud)
-                    cust.print_trans(temp_tx_data, is_fraud, fraud_dates, static)
+                    cust.print_trans(temp_tx_data, is_fraud, fraud_dates, static = is_static, scenario_identifier = need_identifier)
                 line_num += 1
                 if line_num > end_offset:
                     break
@@ -246,6 +253,7 @@ if __name__ == '__main__':
     parser.add_argument('end_date', type=valid_date, help='Transactions start date')
     parser.add_argument('-o', '--output', type=pathlib.Path, help='Output file path')
     parser.add_argument('-s', '--static_merchants', action='store_true', help='Whether generate merchants with static coordinates and identify high-risk merchants') # Static merchants switch
+    parser.add_argument('-i', '--scenario_identifier', action='store_true', help='Mark scenario-generated transactions with scenario markers')
 
     args = parser.parse_args()
 
@@ -255,6 +263,7 @@ if __name__ == '__main__':
     end_date = args.end_date
     out_path = args.output
     if_static = bool(args.static_merchants)
+    need_identifier = bool(args.scenario_identifier)
 
-    main(customer_file, profile_file, start_date, end_date, out_path, static = if_static)
+    main(customer_file, profile_file, start_date, end_date, out_path, static = if_static, scenario_identifier=need_identifier)
     

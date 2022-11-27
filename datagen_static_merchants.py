@@ -35,9 +35,11 @@ brick_and_mortar = ["gas_transport","food_dining"]
 def main(n_customers, addy_list):
 
     if n_customers <= 1000:
-        coef = 5 # For each customer, generate roughly 5 merchants if customers are less than 200
+        coef = 5 # For each customer, generate roughly 5 merchants if customers are less than 1000.
     else:
-        coef = 1
+        coef = 1 # For each customer, generate roughly 1 merchants if customers
+                 # are more than 1000. Due to we ceil() the allocated merchant numbers, 
+                 # in reality this will give ~10 merchants per customer.
 
     total_number = n_customers * coef # Total number of the merchants
     
@@ -60,7 +62,7 @@ def main(n_customers, addy_list):
     print(header)
 
     for city in freq_n_coordinates:
-        freq_n_coordinates[city][0] = freq_n_coordinates[city][0]/pop_sum # Now the value is: [population/total_population, lat, long]
+        freq_n_coordinates[city][0] = freq_n_coordinates[city][0]/pop_sum # Now the value is: [population divided by total_population, lat, long]
         city_merchant_number =  ceil(total_number * freq_n_coordinates[city][0]) # Calculate the total merchant number of the city in all the categories
         # For brick and mortar businesses (e.g., gas, restaurant), their frequencies will be 2 times higher than others
         category_merchant_number = ceil(city_merchant_number/(len(category_list)+ 2 * len(brick_and_mortar))) 
@@ -71,8 +73,7 @@ def main(n_customers, addy_list):
                 merchant_number = 3 * category_merchant_number
             for _ in range(merchant_number):
                 merchant_fraud_flag = random.randint(1,100) 
-                # If hit: 1% chance; 5% percent chance and the category is of moderate risk; 10% percent chance and the category is of high risk, 
-                # this merchant is compromised.
+                # If hit: 1% chance; 5% percent chance and the category is of moderate risk; 10% percent chance and the category is of high risk, then this merchant is compromised.
                 if merchant_fraud_flag == 1 or (merchant_fraud_flag <= 5 and c in moderate_risk_cates) or (merchant_fraud_flag <= 10 and c in high_risk_cates):
                     fraud_risk = 1
                 else:
